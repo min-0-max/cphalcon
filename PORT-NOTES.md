@@ -92,27 +92,46 @@ tests/_data/schemas/mysql/phalcon_test.sql:
     COMPOSER=composer-port.json composer install
     scripts/run-suite.sh "$(which php)" build/php7/64bits/modules
 
-Suite state (bundled tests/unit, 1,335 tests, MySQL loaded with the
-bundled schema):
+Suite state (bundled tests/unit, 1,335 tests):
 
-- Linux (Ubuntu 26.04, PHP 8.5.4, MySQL 8.4, en_US.UTF-8 locale):
-  34 errors + 16 failures - the reference run
-- PHP 8.5.10 / macOS arm64: 35 errors + 19 failures (same profile)
-- PHP 8.6.0RC7 / macOS arm64: 34 errors + 17 failures (same profile)
+## Oracle-differential result (the acceptance comparison)
 
-Every remaining failure is environment-bound, verified one by one:
-Postgres absent (9), CLI session warnings from runner output (15),
-AES-128-ECB blocked by OpenSSL 3 policy (2), sqlite-context model
-metadata fixtures (6), and a few runner artifacts. Note the glibc
-iconv //TRANSLIT quality in Tag::friendlyTitle requires the
-en_US.UTF-8 locale to be generated (absent -> accented characters are
-dropped); verified directly. Verified real port bugs fixed along the
-way: Volt join, require-file-handle corruption (SIGBUS), fcall garbage,
-Date validator, Luhn, twig engine fixtures.
+Environment: Apple Containers, Linux/arm64, MariaDB 10.11,
+Postgres 16, Redis 7, Memcached, sqlite, apc.enable_cli=1,
+en_US.UTF-8 locale, E_ALL, fresh DB per isolated test.
+
+- Oracle (PHP 7.0.33 + stock v3.4.3): 8 errors + 6 failures full-run;
+  every isolated test passes
+- Port (PHP 8.5.4): 4 errors + 11 failures full-run; every isolated
+  test passes except one (ViewTest Issue12648 - asserts PHP 7's exact
+  undefined-variable warning text; PHP 8 changed the message)
+
+Full-run residual failures on both stacks are cross-test DB-state
+ordering artifacts (Codeception 2 and 5 iterate test directories in
+different orders; the suite assumes per-CI-run fresh DBs). The correct
+comparison is per-test isolation with a fresh schema, where the port
+matches the oracle on all 19 previously-divergent tests.
+
+Real port bugs found by this differential (all fixed):
+1. Escaper::detectEncoding ARM64 signed-char misdetection (also an
+   upstream 3.4.3 bug on ARM64)
+2. Debug\Dump: baked PHP 7 ReflectionProperty constants (256/512/1024
+   vs PHP 8's 1/2/4) - detailed dumps printed nothing
+3. LSB scope lost on static calls through name-based resolution
+   (fixed by direct fcc resolution in zephir_fcall_resolve)
+4. Crypt: cipher availability check was case-sensitive + zero-length
+   IV crash on ECB ciphers (AES-256-ECB/-CFB verified working)
+
+Encryption audit (Linux/PHP 8.5.4/OpenSSL 3.5, empirical):
+- Works: AES-{128,192,256}-{CBC,CFB,CFB1,CFB8,CTR,OFB,ECB}, ARIA,
+  Camellia, ChaCha20, SM4, 3DES, key wrap variants (87 total)
+- Fails by design: AEAD (GCM/CCM/OCB) - Phalcon 3.4 Crypt API has no
+  tag parameter (same on PHP 7)
+- Blocked by OpenSSL 3 default policy: RC4, IDEA (legacy provider)
+- AES-256-ECB and AES-256-CFB both work (case-insensitive cipher names)
 
 Remaining open items:
-- differential pass against the PHP 7.0 + v3.4.3 oracle
 - Serializable-interface decision for the 3 classes (PHP 7 session and
   cache payload fixtures)
-- MySQL legacy / MariaDB matrix (ci-port/compose.yml has the matrix
-  profile; Apple Containers were used for the reference run)
+- MySQL legacy / MariaDB matrix (ci-port/compose.yml)
+- PHP 8.6 GA re-verification (~2026-11-19)
