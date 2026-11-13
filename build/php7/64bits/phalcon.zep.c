@@ -8751,18 +8751,15 @@ static int zephir_require_ret(zval *return_value_ptr, const char *require_path)
 #endif
 
 #if PHP_VERSION_ID >= 80100
-	/* PHP 8.1: zend_file_handle.filename is a zend_string* that is always
-	 * released by zend_destroy_file_handle(). */
-	file_handle.filename = zend_string_init(require_path, strlen(require_path), 0);
+	/* PHP 8.1: initialize the whole handle via the official API. */
+	zend_stream_init_filename_ex(&file_handle, zend_string_init(require_path, strlen(require_path), 0));
 #else
 	file_handle.filename = require_path;
-#endif
-#if PHP_VERSION_ID < 80100
 	file_handle.free_filename = 0;
-#endif
 	file_handle.type = ZEND_HANDLE_FILENAME;
 	file_handle.opened_path = NULL;
 	file_handle.handle.fp = NULL;
+#endif
 
 	new_op_array = zend_compile_file(&file_handle, ZEND_REQUIRE);
 	if (new_op_array) {
@@ -63429,6 +63426,59 @@ static PHP_METHOD(Phalcon_Mvc_View_Engine_Volt_Compiler, resolveTest) {
 
 }
 
+
+/* Volt "join" filter: Zephir 0.10 emits join(<piped>, <glue>) - the
+ * historic swapped implode order that PHP 8 removed. Swap the first two
+ * top-level arguments and emit implode(<glue>, <piped>) instead, which is
+ * valid and identical on every PHP version. */
+static void zephir_volt_join_expr(zval *return_value, zval *arguments)
+{
+	const char *s = Z_STRVAL_P(arguments);
+	size_t len = Z_STRLEN_P(arguments);
+	size_t i, c1 = (size_t)-1, c2 = (size_t)-1;
+	int depth = 0, in_str = 0;
+	char q = 0;
+	smart_str buf = {0};
+
+	for (i = 0; i < len; i++) {
+		char ch = s[i];
+		if (in_str) {
+			if (ch == '\\') { i++; }
+			else if (ch == q) { in_str = 0; }
+			continue;
+		}
+		if (ch == '\'' || ch == '"') { in_str = 1; q = ch; continue; }
+		if (ch == '(' || ch == '[' || ch == '{') { depth++; }
+		else if (ch == ')' || ch == ']' || ch == '}') { depth--; }
+		else if (ch == ',' && depth == 0) {
+			if (c1 == (size_t)-1) { c1 = i; }
+			else if (c2 == (size_t)-1) { c2 = i; break; }
+		}
+	}
+
+	if (c1 == (size_t)-1) {
+		/* single argument: implode($array) works as-is */
+		smart_str_appends(&buf, "implode(");
+		smart_str_appendl(&buf, s, len);
+		smart_str_appends(&buf, ")");
+	} else {
+		size_t second_start = c1 + 1;
+		size_t second_end = (c2 == (size_t)-1) ? len : c2;
+		while (second_start < second_end && s[second_start] == ' ') { second_start++; }
+		smart_str_appends(&buf, "implode(");
+		smart_str_appendl(&buf, s + second_start, second_end - second_start);
+		smart_str_appends(&buf, ", ");
+		smart_str_appendl(&buf, s, c1);
+		if (c2 != (size_t)-1) {
+			smart_str_appends(&buf, ", ");
+			smart_str_appendl(&buf, s + c2 + 1, len - c2 - 1);
+		}
+		smart_str_appends(&buf, ")");
+	}
+	smart_str_0(&buf);
+	ZVAL_STR(return_value, buf.s);
+}
+
 static PHP_METHOD(Phalcon_Mvc_View_Engine_Volt_Compiler, resolveFilter) {
 
 	zend_bool _13, _14, _15;
@@ -63644,7 +63694,7 @@ static PHP_METHOD(Phalcon_Mvc_View_Engine_Volt_Compiler, resolveFilter) {
 		RETURN_MM();
 	}
 	if (ZEPHIR_IS_STRING(&name, "join")) {
-		ZEPHIR_CONCAT_SVS(return_value, "join(", &arguments, ")");
+		zephir_volt_join_expr(return_value, &arguments);
 		RETURN_MM();
 	}
 	_14 = ZEPHIR_IS_STRING(&name, "lower");

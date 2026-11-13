@@ -44,19 +44,15 @@ class UnitTest extends Unit
 
     public function setExpectedException($exception, $message = '', $code = null)
     {
-        if (!method_exists(PHPUnit_Runner_Version::class, 'id') ||
-            version_compare(PHPUnit_Runner_Version::id(), '5.2.0', '<')) {
-            parent::setExpectedException($exception, $message, $code);
-        } else {
-            $this->expectException($exception);
+        /* Port runner (PHPUnit >= 9): only the expectException API exists. */
+        $this->expectException($exception);
 
-            if ($message !== null && $message !== '') {
-                $this->expectExceptionMessage($message);
-            }
+        if ($message !== null && $message !== '') {
+            $this->expectExceptionMessage($message);
+        }
 
-            if ($code !== null) {
-                $this->expectExceptionCode($code);
-            }
+        if ($code !== null) {
+            $this->expectExceptionCode($code);
         }
     }
 

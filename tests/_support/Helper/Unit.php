@@ -32,7 +32,11 @@ class Unit extends Module
     {
         $this->test = $test;
 
-        SpecifyConfig::setDeepClone(false);
+        /* Codeception/Specify 1.x removed the Config class; the upstream
+         * call only disabled deep cloning of test objects. */
+        if (class_exists(SpecifyConfig::class)) {
+            SpecifyConfig::setDeepClone(false);
+        }
     }
 
     public function getProtectedProperty($obj, $prop)

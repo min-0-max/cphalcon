@@ -1,0 +1,24 @@
+{
+    "description": "Dev dependencies for running the bundled 3.4 test suite against the PHP 8.x port (Codeception 5 runner).",
+    "require-dev": {
+        "codeception/codeception": "^5.0",
+        "codeception/module-asserts": "^3.0",
+        "codeception/module-filesystem": "^3.0",
+        "codeception/module-db": "^3.1",
+        "codeception/specify": "^1.4",
+        "codeception/verify": "^1.0",
+        "mustache/mustache": "^2.11",
+        "twig/twig": "^3.0",
+        "predis/predis": "^2.0",
+        "phpunit/phpunit": "^9.5"
+    },
+    "config": {
+        "platform-check": false
+    },
+    "autoload": {
+        "Phalcon\\Test\\Unit\\": "tests/unit/",
+        "Phalcon\\Test\\Module\\": "tests/_support/Module/",
+        "Phalcon\\Test\\Listener\\": "tests/_data/listener/",
+        "Phalcon\\Test\\Db\\": "tests/_data/db/"
+    }
+}

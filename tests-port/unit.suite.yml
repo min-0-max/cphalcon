@@ -1,0 +1,25 @@
+# Codeception 5 suite config for the bundled Phalcon 3.4 unit tests on the
+# PHP 8.x port. Differences from the upstream (Codeception 2) suite:
+#  - the community Phalcon module does not exist for Codeception 5; the
+#    bootstrap it loaded (tests/_config/bootstrap.php) is included by
+#    TestCaseBootstrap below where tests need it
+#  - Redis/Memcache/libmemcached/Beanstalk/Mongo modules are not enabled;
+#    tests requiring those services are excluded via groups
+actor: UnitTester
+modules:
+    enabled:
+        - Asserts
+        - Filesystem
+        - Db
+        - Helper\Unit
+        - Helper\PhalconPort
+    config:
+        Helper\PhalconPort:
+            bootstrap: 'tests/_config/bootstrap.php'
+        Db:
+            dsn: 'mysql:host=127.0.0.1;dbname=phalcon_test'
+            user: 'root'
+            password: ''
+            populate: true
+            cleanup: false
+            dump: 'tests/_data/schemas/mysql/phalcon_test.sql'

@@ -1,0 +1,19 @@
+# Codeception 5 configuration for running the bundled Phalcon 3.4 unit
+# suite against the PHP 8.x port. Test files are the upstream ones
+# (symlinked from tests/); only the runner config is port-specific.
+actor: Tester
+
+paths:
+    tests: tests-port
+    output: tests/_output
+    data: tests/_data
+    support: tests/_support
+    envs: tests/_envs
+
+settings:
+    bootstrap: ../_bootstrap.php
+    colors: true
+    memory_limit: 1G
+
+params:
+    - tests-port/env.port.yml
