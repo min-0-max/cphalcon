@@ -76,3 +76,6 @@ Makefile.fragments
 Makefile.global
 Makefile.objects
 run-tests.php
+*.pristine
+__pycache__/
+*.pyc
