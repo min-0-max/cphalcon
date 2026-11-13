@@ -58,6 +58,10 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <main/php_ini.h>
 #include <main/SAPI.h>
 #include <ext/standard/php_string.h>
+#if PHP_VERSION_ID >= 80600
+/* PHP 8.6 cleaned transitive includes; the pcre helpers are used below. */
+#include <ext/pcre/php_pcre.h>
+#endif
 #if PHP_VERSION_ID < 80500
 #include <ext/standard/php_smart_string.h>
 #endif
@@ -1928,7 +1932,8 @@ static void zephir_gettype(zval *return_value, zval *arg);
 static inline int zephir_maybe_separate_zval(zval* z)
 {
 	if (!Z_REFCOUNTED_P(z) || (Z_REFCOUNT_P(z) > 1 && !Z_ISREF_P(z))) {
-		if (!(Z_COPYABLE_P(z) && !Z_REFCOUNTED_P(z))) {
+		/* PHP 8.6 removed Z_COPYABLE_P; it was true exactly for IS_ARRAY. */
+		if (!(Z_TYPE_P(z) == IS_ARRAY && !Z_REFCOUNTED_P(z))) {
 			Z_DELREF_P(z);
 		}
 		zval_copy_ctor_func(z);
@@ -7100,7 +7105,7 @@ static void zephir_append_printable_zval(smart_str *implstr, zval *tmp)
 			break;
 
 		default:
-			smart_str_append(implstr, _zval_get_string_func(tmp));
+			smart_str_append(implstr, zval_get_string_func(tmp));
 			break;
 	}
 }
@@ -7733,11 +7738,16 @@ static void zephir_preg_match(zval *return_value, zval *regex, zval *subject, zv
 
 	ZVAL_UNDEF(&tmp_matches);
 
+#if PHP_VERSION_ID >= 80600
+	/* PHP 8.6: subject is zend_string*, the use_flags argument is gone. */
+	php_pcre_match_impl(pce, Z_STR_P(subject), return_value, &tmp_matches, global, flags, offset);
+#else
 	if (flags != 0 || offset != 0) {
 		php_pcre_match_impl(pce, Z_STRVAL_P(subject), Z_STRLEN_P(subject), return_value, &tmp_matches, global, 1, flags, offset);
 	} else {
 		php_pcre_match_impl(pce, Z_STRVAL_P(subject), Z_STRLEN_P(subject), return_value, &tmp_matches, global, 0, 0, 0);
 	}
+#endif
 
 	if (matches) {
 		zval *php_matches = &tmp_matches;
