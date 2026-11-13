@@ -13,9 +13,13 @@ modules:
         - Db
         - Helper\Unit
         - Helper\PhalconPort
+        - Phalcon\Test\Module\Cache\Backend\File
     config:
         Helper\PhalconPort:
             bootstrap: 'tests/_config/bootstrap.php'
+        Phalcon\Test\Module\Cache\Backend\File:
+            frontend: 'Phalcon\Cache\Frontend\Data'
+            cache_dir: 'tests/_cache/'
         Db:
             dsn: 'mysql:host=127.0.0.1;dbname=phalcon_test'
             user: 'root'

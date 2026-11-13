@@ -56,13 +56,13 @@ class File extends Filesystem
      * {@inheritdoc}
      * @var array
      */
-    protected $config = [];
+    protected array $config = [];
 
     /**
      * {@inheritdoc}
      * @var array
      */
-    protected $requiredFields = ['frontend', 'backend'];
+    protected array $requiredFields = ['frontend', 'backend'];
 
     /**
      * File Constructor.
@@ -72,7 +72,7 @@ class File extends Filesystem
      *
      * @throws ModuleConfigException
      */
-    public function __construct(ModuleContainer $container, array $config = null)
+    public function __construct(ModuleContainer $container, array $config = [])
     {
         $defaults = [
             'frontend'  => Data::class,
@@ -111,7 +111,7 @@ class File extends Filesystem
      * @param string $className
      * @param array  $config
      */
-    public function haveFrontendAdapter($className, array $config = null)
+    public function haveFrontendAdapter($className, array $config = [])
     {
         $defaults = [
             'frontend' => $className,

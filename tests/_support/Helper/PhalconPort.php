@@ -91,18 +91,6 @@ class PhalconPort extends Module
     }
 
     /**
-     * Creates a cache frontend adapter with the given constructor options.
-     *
-     * @param string $frontend
-     * @param array $options
-     * @return object
-     */
-    public function haveFrontendAdapter($frontend, array $options = array())
-    {
-        return new $frontend($options);
-    }
-
-    /**
      * Stores a value in APCu under the given key.
      */
     public function haveInApc($key, $value)
@@ -133,16 +121,6 @@ class PhalconPort extends Module
         if (apcu_exists($key)) {
             $this->fail("The APCu key '$key' exists but should not");
         }
-    }
-
-    public function seeCacheStarted($frontend)
-    {
-        $this->assertTrue($frontend->isStarted());
-    }
-
-    public function dontSeeCacheStarted($frontend)
-    {
-        $this->assertFalse($frontend->isStarted());
     }
 
     /**
