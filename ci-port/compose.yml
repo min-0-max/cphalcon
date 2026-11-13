@@ -1,0 +1,54 @@
+services:
+  mysql:
+    image: mysql:8.4
+    environment:
+      MYSQL_ROOT_PASSWORD: ""
+      MYSQL_ALLOW_EMPTY_PASSWORD: "yes"
+      MYSQL_DATABASE: phalcon_test
+    ports:
+      - "3399:3306"
+    volumes:
+      - ../tests/_data/schemas/mysql/phalcon_test.sql:/docker-entrypoint-initdb.d/phalcon_test.sql:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+
+  mariadb:
+    image: mariadb:11
+    profiles: ["matrix"]
+    environment:
+      MARIADB_ROOT_PASSWORD: ""
+      MARIADB_ALLOW_EMPTY_ROOT_PASSWORD: "yes"
+      MARIADB_DATABASE: phalcon_test
+    ports:
+      - "3398:3306"
+    volumes:
+      - ../tests/_data/schemas/mysql/phalcon_test.sql:/docker-entrypoint-initdb.d/phalcon_test.sql:ro
+
+  suite85:
+    build:
+      context: .
+      dockerfile: Dockerfile.php85
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      TEST_DB_MYSQL_HOST: mysql
+      TEST_DB_MYSQL_PORT: "3306"
+      TEST_DB_MYSQL_USER: root
+      TEST_DB_MYSQL_PASSWD: ""
+      TEST_DB_MYSQL_NAME: phalcon_test
+      TEST_DB_MYSQL_CHARSET: utf8
+    volumes:
+      - ../:/src
+    command: >
+      bash -c "cd /src/build/php7/64bits
+      && phpize && ./configure && make -j$$(nproc)
+      && cd /src
+      && COMPOSER=composer-port.json composer install --no-interaction
+      && php -d extension=/src/build/php7/64bits/modules/phalcon.so
+             -d auto_prepend_file=/src/tests-port/_bootstrap.php
+             -d error_reporting=0
+             vendor/bin/codecept run -c codeception.port.yml unit --no-colors"
