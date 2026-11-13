@@ -131,7 +131,22 @@ Encryption audit (Linux/PHP 8.5.4/OpenSSL 3.5, empirical):
 - AES-256-ECB and AES-256-CFB both work (case-insensitive cipher names)
 
 Remaining open items:
-- Serializable-interface decision for the 3 classes (PHP 7 session and
-  cache payload fixtures)
-- MySQL legacy / MariaDB matrix (ci-port/compose.yml)
 - PHP 8.6 GA re-verification (~2026-11-19)
+
+## Serializable-interface decision: KEEP
+
+Cross-version payload testing (PHP 7.0.33 generated on the oracle
+container, un-serialized on the PHP 8.5.4 port):
+
+| Class | PHP 7 payload → PHP 8.5 un-serialize |
+|---|---|
+| Phalcon\Mvc\Model\Resultset\Simple (real DB result) | OK (8 items, full data) |
+| Phalcon\Config (nested) | OK |
+| Phalcon\Acl\Role | OK |
+| Phalcon\Validation\Message | OK |
+| Phalcon\Session\Bag | OK |
+| Phalcon\Cache\Backend\Memory | class restored OK; stored data NULL — identical on the PHP 7 oracle round-trip (by upstream design: the Serializable payload stores the frontend, not the data) |
+
+The 3 startup deprecation notices (Serializable interface) remain
+harmless: PHP 7 payloads un-serialize correctly and the interface is
+not removed until PHP 9.
