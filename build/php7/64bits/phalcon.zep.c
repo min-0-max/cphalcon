@@ -165471,6 +165471,13 @@ static PHP_METHOD(Phalcon_Validation_Validator_Date, checkDate) {
 	_1 = zephir_fetch_class_str_ex(SL("DateTime"), ZEND_FETCH_CLASS_AUTO);
 	ZEPHIR_CALL_CE_STATIC(&errors, _1, "getlasterrors", NULL, 0);
 	zephir_check_call_status();
+#if PHP_VERSION_ID >= 80200
+	/* PHP 8.2: DateTime::getLastErrors() returns false when there were no
+	 * errors (PHP 7 always returned an array with zero counts). */
+	if (Z_TYPE(errors) != IS_ARRAY) {
+		RETURN_MM_BOOL(1);
+	}
+#endif
 	zephir_array_fetch_string(&_2, &errors, SL("warning_count"), PH_NOISY | PH_READONLY, "phalcon/validation/validator/date.zep", 120 TSRMLS_CC);
 	_3 = ZEPHIR_GT_LONG(&_2, 0);
 	if (!(_3)) {
