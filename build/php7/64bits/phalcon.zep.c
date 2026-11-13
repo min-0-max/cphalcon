@@ -9108,7 +9108,7 @@ static void zephir_prepare_virtual_path(zval *return_value, zval *path, zval *vi
 			smart_str_appendl(&virtual_str, Z_STRVAL_P(virtual_separator), Z_STRLEN_P(virtual_separator));
 		}
 		else {
-			smart_str_appendc(&virtual_str, tolower(ch));
+			smart_str_appendc(&virtual_str, tolower((unsigned char) ch));
 		}
 	}
 
@@ -12235,7 +12235,10 @@ static void zephir_is_basic_charset(zval *return_value, const zval *param)
 	int iso88591 = 0;
 
 	for (i = 0; i < Z_STRLEN_P(param); i++) {
-		ch = Z_STRVAL_P(param)[i];
+		/* char is unsigned on ARM64; x86 (the reference behavior) sees
+		 * bytes >= 0x80 as negative, falls through to mb_detect_encoding.
+		 * Force signed so ARM matches x86 exactly. */
+		ch = (signed char) Z_STRVAL_P(param)[i];
 		if (ch != '\0') {
 			if (ch == 172 || (ch >= 128 && ch <= 159)) {
 				continue;

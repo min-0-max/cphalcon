@@ -25,5 +25,5 @@ modules:
             user: '%TEST_DB_MYSQL_USER%'
             password: '%TEST_DB_MYSQL_PASSWD%'
             populate: true
-            cleanup: false
+            cleanup: true
             dump: 'tests/_data/schemas/mysql/phalcon_test.sql'
