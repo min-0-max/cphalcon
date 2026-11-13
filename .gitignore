@@ -52,3 +52,27 @@ composer.lock
 php_test_results_*.txt
 docker-compose.yml
 build/gccarch
+
+# Build artifacts (phpize/make)
+*.lo
+*.o
+*.dep
+.libs/
+modules/
+autom4te.cache/
+aclocal.m4
+ltmain.sh
+libtool
+ltsugar.m4
+ltoptions.m4
+lt~obsolete.m4
+configure
+configure.ac.tmp
+config.h
+config.h.in
+config.nice
+Makefile
+Makefile.fragments
+Makefile.global
+Makefile.objects
+run-tests.php

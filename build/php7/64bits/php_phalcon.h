@@ -32,6 +32,7 @@
 #define ZEPHIR_KERNEL_GLOBALS_H
 
 #include <php.h>
+#include "php8_compat.h"
 
 #define ZEPHIR_MAX_MEMORY_STACK 48
 #define ZEPHIR_MAX_CACHE_SLOTS 512

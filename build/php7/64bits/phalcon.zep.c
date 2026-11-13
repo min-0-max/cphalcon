@@ -58,13 +58,19 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <main/php_ini.h>
 #include <main/SAPI.h>
 #include <ext/standard/php_string.h>
+#if PHP_VERSION_ID < 80500
 #include <ext/standard/php_smart_string.h>
+#endif
 #include <ext/standard/info.h>
 #include <ext/pdo/php_pdo_driver.h>
 #include <ext/standard/file.h>
 #include <ext/standard/php_filestat.h>
+#if PHP_VERSION_ID >= 80200
+#include <ext/random/php_random.h>
+#else
 #include <ext/standard/php_rand.h>
 #include <ext/standard/php_lcg.h>
+#endif
 #include <ext/standard/php_math.h>
 #include <ext/standard/php_array.h>
 #include <ext/standard/php_var.h>
@@ -3588,13 +3594,13 @@ static void zephir_fast_count(zval *result, zval *value)
 
 		if (Z_OBJ_HT_P(value)->count_elements) {
 			ZVAL_LONG(result, 1);
-			if (SUCCESS == Z_OBJ_HT(*value)->count_elements(value, &Z_LVAL_P(result))) {
+			if (SUCCESS == Z_OBJ_HT(*value)->count_elements(Z_OBJ_P(value), &Z_LVAL_P(result))) {
 				return;
 			}
 		}
 
 		if (instanceof_function(Z_OBJCE_P(value), spl_ce_Countable)) {
-			zend_call_method_with_0_params(value, NULL, NULL, "count", &retval);
+			zend_call_method_with_0_params(Z_OBJ_P(value), NULL, NULL, "count", &retval);
 			if (Z_TYPE(retval) != IS_UNDEF) {
 				convert_to_long_ex(&retval);
 				ZVAL_LONG(result, Z_LVAL(retval));
@@ -3628,12 +3634,12 @@ static int zephir_fast_count_ev(zval *value)
 		zval retval;
 
 		if (Z_OBJ_HT_P(value)->count_elements) {
-			Z_OBJ_HT(*value)->count_elements(value, &count);
+						Z_OBJ_HT(*value)->count_elements(Z_OBJ_P(value), &count);
 			return (int) count > 0;
 		}
 
 		if (instanceof_function(Z_OBJCE_P(value), spl_ce_Countable)) {
-			zend_call_method_with_0_params(value, NULL, NULL, "count", &retval);
+			zend_call_method_with_0_params(Z_OBJ_P(value), NULL, NULL, "count", &retval);
 			if (Z_TYPE(retval) != IS_UNDEF) {
 				convert_to_long_ex(&retval);
 				count = Z_LVAL(retval);
@@ -3666,12 +3672,12 @@ static int zephir_fast_count_int(zval *value)
 		zval retval;
 
 		if (Z_OBJ_HT_P(value)->count_elements) {
-			Z_OBJ_HT(*value)->count_elements(value, &count);
+						Z_OBJ_HT(*value)->count_elements(Z_OBJ_P(value), &count);
 			return (int) count;
 		}
 
 		if (instanceof_function(Z_OBJCE_P(value), spl_ce_Countable)) {
-			zend_call_method_with_0_params(value, NULL, NULL, "count", &retval);
+			zend_call_method_with_0_params(Z_OBJ_P(value), NULL, NULL, "count", &retval);
 			if (Z_TYPE(retval) != IS_UNDEF) {
 				convert_to_long_ex(&retval);
 				count = Z_LVAL(retval);
@@ -3965,8 +3971,14 @@ zephir_get_arg(zval *return_value, zend_long idx)
 	}
 
 	arg_count = ZEND_CALL_NUM_ARGS(ex);
-#if PHP_VERSION_ID >= 70100
+#if PHP_VERSION_ID >= 70100 && PHP_VERSION_ID < 80000
 	if (zend_forbid_dynamic_call("func_get_arg()") == FAILURE) {
+		RETURN_FALSE;
+	}
+#endif
+#if PHP_VERSION_ID >= 80000
+	/* PHP 8: zend_forbid_dynamic_call() takes no argument. */
+	if (zend_forbid_dynamic_call() == FAILURE) {
 		RETURN_FALSE;
 	}
 #endif
@@ -4603,8 +4615,8 @@ static void zephir_throw_exception_debug(zval *object, const char *file, zend_ui
 		zephir_check_call_status();
 		if (ZEPHIR_IS_LONG(&curline, 0)) {
 			default_exception_ce = zend_exception_get_default();
-			zend_update_property_string(default_exception_ce, object, SL("file"), file);
-			zend_update_property_long(default_exception_ce, object, SL("line"), line);
+			zend_update_property_string(default_exception_ce, Z_OBJ_P(object), SL("file"), file);
+			zend_update_property_long(default_exception_ce, Z_OBJ_P(object), SL("line"), line);
 		}
 	}
 
@@ -4628,8 +4640,8 @@ static void zephir_throw_exception_string_debug(zend_class_entry *ce, const char
 
 	if (line > 0) {
 		default_exception_ce = zend_exception_get_default();
-		zend_update_property_string(default_exception_ce, &object, "file", sizeof("file")-1, file);
-		zend_update_property_long(default_exception_ce, &object, "line", sizeof("line")-1, line);
+		zend_update_property_string(default_exception_ce, Z_OBJ_P(&object), "file", sizeof("file")-1, file);
+		zend_update_property_long(default_exception_ce, Z_OBJ_P(&object), "line", sizeof("line")-1, line);
 	}
 
 	if (ZEPHIR_LAST_CALL_STATUS != FAILURE) {
@@ -5058,7 +5070,11 @@ static int zephir_clone(zval *destination, zval *obj)
 			status = FAILURE;
 		} else {
 			if (!EG(exception)) {
+				#if PHP_VERSION_ID >= 80000
+				ZVAL_OBJ(destination, clone_call(Z_OBJ_P(obj)));
+#else
 				ZVAL_OBJ(destination, clone_call(obj));
+#endif
 				if (EG(exception)) {
 					zval_ptr_dtor(destination);
 				}
@@ -5075,7 +5091,7 @@ static int zephir_isset_property(zval *object, const char *property_name, unsign
 		if (EXPECTED(zend_hash_str_exists(&Z_OBJCE_P(object)->properties_info, property_name, property_length))) {
 			return 1;
 		}
-		return zend_hash_str_exists(Z_OBJ_HT_P(object)->get_properties(object), property_name, property_length);
+		return zend_hash_str_exists(Z_OBJ_HT_P(object)->get_properties(Z_OBJ_P(object)), property_name, property_length);
 	}
 
 	return 0;
@@ -5089,7 +5105,7 @@ static int zephir_isset_property_zval(zval *object, const zval *property)
 			if (EXPECTED(zend_hash_str_exists(&Z_OBJCE_P(object)->properties_info, Z_STRVAL_P(property), Z_STRLEN_P(property)))) {
 				return 1;
 			} else {
-				return zend_hash_str_exists(Z_OBJ_HT_P(object)->get_properties(object), Z_STRVAL_P(property), Z_STRLEN_P(property));
+				return zend_hash_str_exists(Z_OBJ_HT_P(object)->get_properties(Z_OBJ_P(object)), Z_STRVAL_P(property), Z_STRLEN_P(property));
 			}
 		}
 	}
@@ -5103,9 +5119,17 @@ static inline zend_class_entry *zephir_lookup_class_ce(zend_class_entry *ce, con
 	zend_property_info *info;
 
 	while (ce) {
+#if PHP_VERSION_ID < 80000
 		if ((info = zend_hash_str_find_ptr(&ce->properties_info, property_name, property_length)) != NULL && (info->flags & ZEND_ACC_SHADOW) != ZEND_ACC_SHADOW)  {
 			return ce;
 		}
+#else
+		/* PHP 8 removed ZEND_ACC_SHADOW (trait property shadowing was
+		 * redesigned); a properties_info hit is no longer shadowed. */
+		if ((info = zend_hash_str_find_ptr(&ce->properties_info, property_name, property_length)) != NULL) {
+			return ce;
+		}
+#endif
 		ce = ce->parent;
 	}
 	return original_ce;
@@ -5153,7 +5177,7 @@ static int zephir_read_property(zval *result, zval *object, const char *property
 
 	ZVAL_STRINGL(&property, property_name, property_length);
 
-	res = Z_OBJ_HT_P(object)->read_property(object, &property, flags ? BP_VAR_IS : BP_VAR_R, NULL, &tmp);
+	res = Z_OBJ_HT_P(object)->read_property(Z_OBJ_P(object), Z_STR(property), flags ? BP_VAR_IS : BP_VAR_R, NULL, &tmp);
 	if ((flags & PH_READONLY) == PH_READONLY) {
 		ZVAL_COPY_VALUE(result, res);
 	} else {
@@ -5256,7 +5280,7 @@ static int zephir_update_property_zval(zval *object, const char *property_name, 
 	ZVAL_STRINGL(&property, property_name, property_length);
 
 	/* write_property will add 1 to refcount, so no Z_TRY_ADDREF_P(value); is necessary */
-	Z_OBJ_HT_P(object)->write_property(object, &property, value, 0);
+	Z_OBJ_HT_P(object)->write_property(Z_OBJ_P(object), Z_STR(property), value, NULL);
 	zval_ptr_dtor(&property);
 
 #if PHP_VERSION_ID >= 70100
@@ -5502,7 +5526,7 @@ static int zephir_unset_property(zval* object, const char* name)
 		EG(scope) = Z_OBJCE_P(object);
 #endif
 
-		Z_OBJ_HT_P(object)->unset_property(object, &member, 0);
+		Z_OBJ_HT_P(object)->unset_property(Z_OBJ_P(object), Z_STR(member), NULL);
 
 #if PHP_VERSION_ID >= 70100
 		EG(fake_scope) = old_scope;
@@ -5803,7 +5827,9 @@ static int zephir_create_instance(zval *return_value, const zval *class_name)
 		zend_function* ctor = Z_OBJ_HT_P(return_value)->get_constructor(obj);
 		if (ctor) {
 			zend_fcall_info fci;
+			memset(&fci, 0, sizeof(fci));
 			zend_fcall_info_cache fcc;
+			memset(&fcc, 0, sizeof(fcc));
 
 			zend_class_entry* ce = Z_OBJCE_P(return_value);
 
@@ -5816,7 +5842,9 @@ static int zephir_create_instance(zval *return_value, const zval *class_name)
 			fci.retval           = 0;
 			fci.param_count      = 0;
 			fci.params           = 0;
+#if PHP_VERSION_ID < 80000
 			fci.no_separation    = 1;
+#endif
 			ZVAL_NULL(&fci.function_name);
 
 #if PHP_VERSION_ID < 70300
@@ -5864,7 +5892,9 @@ static int zephir_create_instance_params(zval *return_value, const zval *class_n
 		if (ctor) {
 			int status;
 			zend_fcall_info fci;
+			memset(&fci, 0, sizeof(fci));
 			zend_fcall_info_cache fcc;
+			memset(&fcc, 0, sizeof(fcc));
 
 			zend_class_entry* ce = Z_OBJCE_P(return_value);
 
@@ -5877,7 +5907,9 @@ static int zephir_create_instance_params(zval *return_value, const zval *class_n
 			fci.retval           = 0;
 			fci.param_count      = 0;
 			fci.params           = 0;
+#if PHP_VERSION_ID < 80000
 			fci.no_separation    = 1;
+#endif
 			ZVAL_NULL(&fci.function_name);
 
 #if PHP_VERSION_ID < 70300
@@ -6812,7 +6844,7 @@ static void zephir_fast_strtolower(zval *return_value, zval *str)
 
 	length = Z_STRLEN_P(str);
 	lower_str = estrndup(Z_STRVAL_P(str), length);
-	php_strtolower(lower_str, length);
+	zend_str_tolower(lower_str, length);
 
 	if (use_copy) {
 		zval_dtor(str);
@@ -6838,7 +6870,7 @@ static void zephir_fast_strtoupper(zval *return_value, zval *str)
 
 	length = Z_STRLEN_P(str);
 	lower_str = estrndup(Z_STRVAL_P(str), length);
-	php_strtoupper(lower_str, length);
+	zend_str_toupper(lower_str, length);
 
 	if (use_copy) {
 		zval_dtor(str);
@@ -7142,7 +7174,7 @@ static void zephir_fast_join(zval *result, zval *glue, zval *pieces)
 		return;
 	}
 
-	php_implode(Z_STR_P(glue), pieces, result);
+	php_implode(Z_STR_P(glue), Z_ARRVAL_P(pieces), result);
 }
 
 static void zephir_fast_join_str(zval *return_value, char *glue, unsigned int glue_length, zval *pieces)
@@ -7863,8 +7895,8 @@ static void zephir_crc32(zval *return_value, zval *str)
 	int use_copy = 0;
 	size_t nr;
 	char *p;
-	php_uint32 crc;
-	php_uint32 crcinit = 0;
+	uint32_t crc;
+	uint32_t crcinit = 0;
 
 	if (Z_TYPE_P(str) != IS_STRING) {
 		use_copy = zend_make_printable_zval(str, &copy);
@@ -8174,23 +8206,49 @@ static void resolve_callable(zval* retval, zephir_call_type type, zend_class_ent
 	ZEND_HASH_FILL_PACKED(Z_ARRVAL_P(retval)) {
 		zval q;
 		switch (type) {
-			case zephir_fcall_parent:
+			case zephir_fcall_parent: {
+#if PHP_VERSION_ID >= 80000
+				/* PHP 8 deprecates "parent" in callables; resolve the real
+				 * class name so zend_is_callable_ex() stays quiet. */
+				zend_class_entry *scope = zend_get_executed_scope();
+				assert(scope && scope->parent);
+				zend_string_addref(scope->parent->name);
+				ZVAL_STR(&q, scope->parent->name);
+#else
 				zend_string_addref(i_parent);
 				ZVAL_STR(&q, i_parent);
+#endif
 				ZEND_HASH_FILL_ADD(&q);
 				break;
+			}
 
-			case zephir_fcall_self:
+			case zephir_fcall_self: {
+#if PHP_VERSION_ID >= 80000
+				zend_class_entry *scope = zend_get_executed_scope();
+				assert(scope);
+				zend_string_addref(scope->name);
+				ZVAL_STR(&q, scope->name);
+#else
 				zend_string_addref(i_self);
 				ZVAL_STR(&q, i_self);
+#endif
 				ZEND_HASH_FILL_ADD(&q);
 				break;
+			}
 
-			case zephir_fcall_static:
+			case zephir_fcall_static: {
+#if PHP_VERSION_ID >= 80000
+				zend_class_entry *scope = zend_get_called_scope(EG(current_execute_data));
+				assert(scope);
+				zend_string_addref(scope->name);
+				ZVAL_STR(&q, scope->name);
+#else
 				zend_string_addref(i_static);
 				ZVAL_STR(&q, i_static);
+#endif
 				ZEND_HASH_FILL_ADD(&q);
 				break;
+			}
 
 			case zephir_fcall_ce:
 				assert(ce);
@@ -8268,7 +8326,8 @@ static void populate_fcic(zend_fcall_info_cache* fcic, zephir_call_type type, ze
 		case zephir_fcall_function:
 		case zephir_fcall_method:
 			if (Z_TYPE_P(func) == IS_OBJECT) {
-				if (Z_OBJ_HANDLER_P(func, get_closure) && Z_OBJ_HANDLER_P(func, get_closure)(func, &fcic->calling_scope, &fcic->function_handler, &fcic->object) == SUCCESS) {
+				/* PHP 8: get_closure() handler gained the check_only parameter. */
+				if (Z_OBJ_HANDLER_P(func, get_closure) && Z_OBJ_HANDLER_P(func, get_closure)(Z_OBJ_P(func), &fcic->calling_scope, &fcic->function_handler, &fcic->object, 0) == SUCCESS) {
 					fcic->called_scope = fcic->calling_scope;
 					break;
 				}
@@ -8296,7 +8355,9 @@ static int zephir_call_user_function(zval *object_pp, zend_class_entry *obj_ce, 
 	zval local_retval_ptr;
 	int status;
 	zend_fcall_info fci;
+	memset(&fci, 0, sizeof(fci));
 	zend_fcall_info_cache fcic;
+	memset(&fcic, 0, sizeof(fcic));
 	zend_zephir_globals_def *zephir_globals_ptr = ZEPHIR_VGLOBAL;
 	char fcall_key[sizeof(zend_string) + 256];
 	int key_ok = FAILURE;
@@ -8343,8 +8404,9 @@ static int zephir_call_user_function(zval *object_pp, zend_class_entry *obj_ce, 
 	fci.retval         = retval_ptr ? retval_ptr : &local_retval_ptr;
 	fci.param_count    = param_count;
 	fci.params         = NULL;
+#if PHP_VERSION_ID < 80000
 	fci.no_separation  = 1;
-
+#endif
 #if PHP_VERSION_ID < 70300
 	fcic.initialized = 0;
 #endif
@@ -8361,13 +8423,37 @@ static int zephir_call_user_function(zval *object_pp, zend_class_entry *obj_ce, 
 	else if ((cache_entry && !*cache_entry) || zephir_globals_ptr->cache_enabled) {
 	/* The caller is interested in caching OR we have the call cache enabled */
 		resolve_callable(&callable, type, (object_pp && type != zephir_fcall_ce ? Z_OBJCE_P(object_pp) : obj_ce), object_pp, function_name);
+#if PHP_VERSION_ID >= 80000
+		/* PHP 8 removed IS_CALLABLE_CHECK_SILENT; flags 0 with a NULL error
+		 * zval performs the same silent resolution. */
+		zend_is_callable_ex(&callable, fci.object, 0, NULL, &fcic, NULL);
+#if PHP_VERSION_ID >= 80000
+		/* Fall back to the resolved callable so zend_call_function() can
+		 * resolve by name if the fcc above is incomplete. */
+		ZVAL_COPY_VALUE(&fci.function_name, &callable);
+#endif
+#else
 		zend_is_callable_ex(&callable, fci.object, IS_CALLABLE_CHECK_SILENT, NULL, &fcic, NULL);
+#endif
 	}
 
 #if PHP_VERSION_ID < 70300
 	if (!fcic.initialized) {
 		resolve_callable(&callable, type, (object_pp && type != zephir_fcall_ce ? Z_OBJCE_P(object_pp) : obj_ce), object_pp, function_name);
 		ZVAL_COPY_VALUE(&fci.function_name, &callable);
+	}
+#endif
+
+#if PHP_VERSION_ID >= 80000
+	/* PHP 8's zend_call_function() binds $this from fci_cache->object only.
+	 * Resolving via a ["Class", "method"] name callable leaves fcc.object
+	 * NULL, which would silently unbind $this; restore the object and the
+	 * original called scope (late static binding) here. */
+	if (fci.object && fcic.function_handler && !fcic.object && !(fcic.function_handler->common.fn_flags & ZEND_ACC_STATIC)) {
+		fcic.object = fci.object;
+		if (type != zephir_fcall_ce) {
+			fcic.called_scope = called_scope;
+		}
 	}
 #endif
 
@@ -8553,7 +8639,9 @@ static int zephir_call_class_method_aparams(zval *return_value, zend_class_entry
 static int zephir_call_user_func_array_noex(zval *return_value, zval *handler, zval *params)
 {
 	zend_fcall_info fci;
+	memset(&fci, 0, sizeof(fci));
 	zend_fcall_info_cache fci_cache;
+	memset(&fci_cache, 0, sizeof(fci_cache));
 	char *is_callable_error = NULL;
 	int status = FAILURE;
 
@@ -8598,7 +8686,13 @@ static void zephir_eval_php(zval *str, zval *retval_ptr, char *context)
 
 	original_compiler_options = CG(compiler_options);
 	CG(compiler_options) = ZEND_COMPILE_DEFAULT_FOR_EVAL;
+#if PHP_VERSION_ID >= 80200
+	/* PHP 8.2 added the compile-position argument; eval semantics compile
+	 * as code directly after the open tag. */
+	new_op_array = zend_compile_string(Z_STR_P(str), context, ZEND_COMPILE_POSITION_AFTER_OPEN_TAG);
+#else
 	new_op_array = zend_compile_string(str, context);
+#endif
 	CG(compiler_options) = original_compiler_options;
 
 	if (new_op_array)
@@ -8656,8 +8750,16 @@ static int zephir_require_ret(zval *return_value_ptr, const char *require_path)
 	}
 #endif
 
+#if PHP_VERSION_ID >= 80100
+	/* PHP 8.1: zend_file_handle.filename is a zend_string* that is always
+	 * released by zend_destroy_file_handle(). */
+	file_handle.filename = zend_string_init(require_path, strlen(require_path), 0);
+#else
 	file_handle.filename = require_path;
+#endif
+#if PHP_VERSION_ID < 80100
 	file_handle.free_filename = 0;
+#endif
 	file_handle.type = ZEND_HANDLE_FILENAME;
 	file_handle.opened_path = NULL;
 	file_handle.handle.fp = NULL;
@@ -8744,7 +8846,7 @@ static int zephir_file_exists(zval *filename)
 		return FAILURE;
 	}
 
-	php_stat(Z_STRVAL_P(filename), (php_stat_len) Z_STRLEN_P(filename), FS_EXISTS, &return_value);
+	php_stat(Z_STR_P(filename), FS_EXISTS, &return_value);
 
 	if (Z_TYPE(return_value) != IS_TRUE) {
 		return FAILURE;
@@ -8968,7 +9070,7 @@ static void zephir_file_put_contents(zval *return_value, zval *filename, zval *d
 static void zephir_filemtime(zval *return_value, zval *path)
 {
 	if (EXPECTED(Z_TYPE_P(path) == IS_STRING)) {
-		php_stat(Z_STRVAL_P(path), (php_stat_len)(Z_STRLEN_P(path)), FS_MTIME, return_value);
+		php_stat(Z_STR_P(path), FS_MTIME, return_value);
 	} else {
 		ZVAL_FALSE(return_value);
 	}
@@ -11983,6 +12085,14 @@ zephir_mt_rand(zend_long min, zend_long max)
 		return 0;
 	}
 
+#if PHP_VERSION_ID >= 80200
+	/* PHP >= 8.2: the global MT19937 engine (including userland mt_srand() state)
+	 * lives in ext/random and is seeded automatically; the BG(mt_rand_is_seeded)
+	 * flag no longer exists. Drawing via php_mt_rand_range() matches userland
+	 * mt_rand($min, $max) exactly. */
+	number = php_mt_rand_range(min, max);
+	return number;
+#else
 	if (!BG(mt_rand_is_seeded)) {
 		php_mt_srand(GENERATE_SEED());
 	}
@@ -11996,6 +12106,7 @@ zephir_mt_rand(zend_long min, zend_long max)
 #endif
 
 	return number;
+#endif /* PHP_VERSION_ID >= 80200 */
 }
 
 double zephir_ldexp(zval *value, zval *expval)
