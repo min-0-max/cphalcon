@@ -8358,6 +8358,108 @@ static void populate_fcic(zend_fcall_info_cache* fcic, zephir_call_type type, ze
 #endif
 }
 
+#if PHP_VERSION_ID >= 80000
+/* Resolve a Zephir call directly into fci/fcc, mirroring the engine's
+ * INIT_METHOD_CALL / INIT_STATIC_METHOD_CALL semantics - no intermediate
+ * string callables (deprecated for self/static/parent on PHP 8) and no
+ * post-hoc scope repair. Scope semantics are identical to the cache-hit
+ * path (populate_fcic). Returns SUCCESS with fcic fully populated, or
+ * FAILURE (caller falls back to the name form purely for the engine's
+ * error message). */
+static int zephir_fcall_resolve(zend_fcall_info *fci, zend_fcall_info_cache *fcic, zephir_call_type type,
+	zend_class_entry *obj_ce, zval *object_pp, zval *function_name, zend_class_entry *called_scope)
+{
+	zend_class_entry *exec_scope = zend_get_executed_scope();
+	zend_class_entry *lookup_ce = NULL;
+	/* Like populate_fcic: $this comes from object_pp for every method-ish
+	 * call type (method/self/static/parent), not just plain method calls. */
+	zend_object *obj = (object_pp && Z_TYPE_P(object_pp) == IS_OBJECT)
+		? Z_OBJ_P(object_pp) : NULL;
+	zend_string *lcname;
+	zend_function *fptr;
+
+	if (Z_TYPE_P(function_name) != IS_STRING) {
+		/* closures/objects keep the old resolution path */
+		return FAILURE;
+	}
+
+	switch (type) {
+		case zephir_fcall_function:
+			lcname = zend_string_tolower(Z_STR_P(function_name));
+			fptr = zend_hash_find_ptr(EG(function_table), lcname);
+			zend_string_release(lcname);
+			if (!fptr) {
+				return FAILURE;
+			}
+			fcic->function_handler = fptr;
+			fcic->calling_scope = NULL;
+			fcic->called_scope = NULL;
+			fcic->object = NULL;
+			return SUCCESS;
+
+		case zephir_fcall_method:
+			if (!obj) {
+				return FAILURE;
+			}
+			lookup_ce = obj->ce;
+			break;
+
+		case zephir_fcall_self:
+			if (!exec_scope) {
+				return FAILURE;
+			}
+			lookup_ce = exec_scope;
+			break;
+
+		case zephir_fcall_parent:
+			if (!exec_scope || !exec_scope->parent) {
+				return FAILURE;
+			}
+			lookup_ce = exec_scope->parent;
+			break;
+
+		case zephir_fcall_static:
+			if (!called_scope) {
+				return FAILURE;
+			}
+			lookup_ce = called_scope;
+			break;
+
+		case zephir_fcall_ce:
+			if (!obj_ce) {
+				return FAILURE;
+			}
+			lookup_ce = obj_ce;
+			break;
+
+		default:
+			return FAILURE;
+	}
+
+	lcname = zend_string_tolower(Z_STR_P(function_name));
+	fptr = zend_hash_find_ptr(&lookup_ce->function_table, lcname);
+	if (!fptr) {
+		/* magic fallback, same handler the engine would pick */
+		zend_string *magic = zend_string_init(obj ? "__call" : "__callstatic",
+			obj ? sizeof("__call")-1 : sizeof("__callstatic")-1, 0);
+		fptr = zend_hash_find_ptr(&lookup_ce->function_table, magic);
+		zend_string_release(magic);
+	}
+	zend_string_release(lcname);
+	if (!fptr) {
+		return FAILURE;
+	}
+
+	fcic->function_handler = fptr;
+	fcic->calling_scope = lookup_ce;
+	fcic->called_scope = (type == zephir_fcall_ce || type == zephir_fcall_method)
+		? lookup_ce : called_scope;   /* preserve LSB for self/static/parent */
+	fcic->object = obj;
+	fci->object = obj;
+	return SUCCESS;
+}
+#endif
+
 static int zephir_call_user_function(zval *object_pp, zend_class_entry *obj_ce, zephir_call_type type,
 	zval *function_name, zval *retval_ptr, zephir_fcall_cache_entry **cache_entry, int cache_slot, zend_uint param_count,
 	zval *params[])
@@ -8432,17 +8534,16 @@ static int zephir_call_user_function(zval *object_pp, zend_class_entry *obj_ce, 
 	}
 	else if ((cache_entry && !*cache_entry) || zephir_globals_ptr->cache_enabled) {
 	/* The caller is interested in caching OR we have the call cache enabled */
-		resolve_callable(&callable, type, (object_pp && type != zephir_fcall_ce ? Z_OBJCE_P(object_pp) : obj_ce), object_pp, function_name);
 #if PHP_VERSION_ID >= 80000
-		/* PHP 8 removed IS_CALLABLE_CHECK_SILENT; flags 0 with a NULL error
-		 * zval performs the same silent resolution. */
-		zend_is_callable_ex(&callable, fci.object, 0, NULL, &fcic, NULL);
-#if PHP_VERSION_ID >= 80000
-		/* Fall back to the resolved callable so zend_call_function() can
-		 * resolve by name if the fcc above is incomplete. */
-		ZVAL_COPY_VALUE(&fci.function_name, &callable);
-#endif
+		if (zephir_fcall_resolve(&fci, &fcic, type, obj_ce, object_pp, function_name, called_scope) == FAILURE) {
+			/* Not resolvable (missing method/function, or a closure):
+			 * keep the name form so zend_call_function() produces the
+			 * engine's standard error message. */
+			resolve_callable(&callable, type, (object_pp && type != zephir_fcall_ce ? Z_OBJCE_P(object_pp) : obj_ce), object_pp, function_name);
+			ZVAL_COPY_VALUE(&fci.function_name, &callable);
+		}
 #else
+		resolve_callable(&callable, type, (object_pp && type != zephir_fcall_ce ? Z_OBJCE_P(object_pp) : obj_ce), object_pp, function_name);
 		zend_is_callable_ex(&callable, fci.object, IS_CALLABLE_CHECK_SILENT, NULL, &fcic, NULL);
 #endif
 	}
@@ -8451,19 +8552,6 @@ static int zephir_call_user_function(zval *object_pp, zend_class_entry *obj_ce, 
 	if (!fcic.initialized) {
 		resolve_callable(&callable, type, (object_pp && type != zephir_fcall_ce ? Z_OBJCE_P(object_pp) : obj_ce), object_pp, function_name);
 		ZVAL_COPY_VALUE(&fci.function_name, &callable);
-	}
-#endif
-
-#if PHP_VERSION_ID >= 80000
-	/* PHP 8's zend_call_function() binds $this from fci_cache->object only.
-	 * Resolving via a ["Class", "method"] name callable leaves fcc.object
-	 * NULL, which would silently unbind $this; restore the object and the
-	 * original called scope (late static binding) here. */
-	if (fci.object && fcic.function_handler && !fcic.object && !(fcic.function_handler->common.fn_flags & ZEND_ACC_STATIC)) {
-		fcic.object = fci.object;
-		if (type != zephir_fcall_ce) {
-			fcic.called_scope = called_scope;
-		}
 	}
 #endif
 
@@ -14275,7 +14363,18 @@ static PHP_METHOD(Phalcon_Crypt, encrypt) {
 		ZEPHIR_CALL_METHOD(&blockSize, this_ptr, "getivlength", NULL, 0, &_6$$7);
 		zephir_check_call_status();
 	}
+#if PHP_VERSION_ID >= 80000
+	if (Z_LVAL(ivLength) > 0) {
+		ZEPHIR_CALL_FUNCTION(&iv, "openssl_random_pseudo_bytes", NULL, 144, &ivLength);
+		zephir_check_call_status();
+	} else {
+		ZEPHIR_INIT_NVAR(&iv);
+		ZVAL_EMPTY_STRING(&iv);
+	}
+#else
 	ZEPHIR_CALL_FUNCTION(&iv, "openssl_random_pseudo_bytes", NULL, 144, &ivLength);
+	zephir_check_call_status();
+#endif
 	zephir_check_call_status();
 	ZEPHIR_OBS_VAR(&paddingType);
 	zephir_read_property(&paddingType, this_ptr, SL("_padding"), PH_NOISY_CC);
@@ -14676,6 +14775,23 @@ static PHP_METHOD(Phalcon_Crypt, getAvailableHashAlgos) {
 
 }
 
+/* Case-insensitive cipher lookup (PHP 8 lists are lowercase; PHP 7.0
+ * exposed mixed case, so apps pass "AES-128-ECB" etc.). */
+static int zephir_crypt_cipher_available(zval *cipher, zval *available)
+{
+	zval *entry;
+	if (Z_TYPE_P(cipher) != IS_STRING || Z_TYPE_P(available) != IS_ARRAY) {
+		return 0;
+	}
+	ZEND_HASH_FOREACH_VAL(Z_ARRVAL_P(available), entry) {
+		if (Z_TYPE_P(entry) == IS_STRING &&
+		    zend_string_equals_ci(Z_STR_P(entry), Z_STR_P(cipher))) {
+			return 1;
+		}
+	} ZEND_HASH_FOREACH_END();
+	return 0;
+}
+
 static PHP_METHOD(Phalcon_Crypt, assertCipherIsAvailable) {
 
 	zend_long ZEPHIR_LAST_CALL_STATUS;
@@ -14706,7 +14822,13 @@ static PHP_METHOD(Phalcon_Crypt, assertCipherIsAvailable) {
 
 	ZEPHIR_CALL_METHOD(&availableCiphers, this_ptr, "getavailableciphers", NULL, 0);
 	zephir_check_call_status();
+#if PHP_VERSION_ID >= 80000
+	/* PHP 8 exposes cipher names lowercase-only; PHP 7.0/openssl 1.0
+	 * exposed mixed case, so user code freely passes "AES-128-CBC". */
+	if (!zephir_crypt_cipher_available(&cipher, &availableCiphers)) {
+#else
 	if (!(zephir_fast_in_array(&cipher, &availableCiphers TSRMLS_CC))) {
+#endif
 		ZEPHIR_INIT_VAR(&_0$$3);
 		object_init_ex(&_0$$3, phalcon_crypt_exception_ce);
 		ZEPHIR_INIT_VAR(&_1$$3);
@@ -133260,7 +133382,13 @@ static PHP_METHOD(Phalcon_Debug_Dump, output) {
 			object_init_ex(&reflect$$13, zephir_get_internal_ce(SL("reflectionclass")));
 			ZEPHIR_CALL_METHOD(NULL, &reflect$$13, "__construct", NULL, 90, variable);
 			zephir_check_call_status();
+#if PHP_VERSION_ID >= 80000
+			/* PHP 8 changed ReflectionProperty visibility constants
+			 * (256/512/1024 -> 1/2/4); the codegen baked the PHP 7 values. */
+			ZVAL_LONG(&_48$$13, ((1 | 2) | 4));
+#else
 			ZVAL_LONG(&_48$$13, ((256 | 512) | 1024));
+#endif
 			ZEPHIR_CALL_METHOD(&props$$13, &reflect$$13, "getproperties", NULL, 94, &_48$$13);
 			zephir_check_call_status();
 			zephir_is_iterable(&props$$13, 0, "phalcon/debug/dump.zep", 214);

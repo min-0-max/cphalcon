@@ -220,8 +220,8 @@ class Libmemcached extends Module
         if (empty($this->memcached->getServerList())) {
             $connect = $this->memcached->addServer(
                 $this->config['host'],
-                $this->config['port'],
-                $this->config['weight']
+                (int) $this->config['port'],
+                (int) $this->config['weight']
             );
 
             if (!$connect) {

@@ -15,7 +15,7 @@ trait Specify
         getCurrentSpecifyTest as public;
     }
 
-    public function specify(string $thing, Closure $code = null, $examples = []): ?self
+    public function specify(string $thing, ?Closure $code = null, $examples = []): ?self
     {
         if ($code instanceof Closure) {
             $this->runSpec($thing, $code, $examples);
@@ -24,7 +24,7 @@ trait Specify
         return $this;
     }
 
-    public function describe(string $feature, Closure $code = null): ?self
+    public function describe(string $feature, ?Closure $code = null): ?self
     {
         if ($code instanceof Closure) {
             $this->runSpec($feature, $code);
@@ -33,7 +33,7 @@ trait Specify
         return $this;
     }
 
-    public function it(string $specification, Closure $code = null, $examples = []): self
+    public function it(string $specification, ?Closure $code = null, $examples = []): self
     {
         if ($code instanceof Closure) {
             $this->runSpec($specification, $code, $examples);
@@ -43,12 +43,12 @@ trait Specify
         return $this;
     }
 
-    public function its(string $specification, Closure $code = null, $examples = []): self
+    public function its(string $specification, ?Closure $code = null, $examples = []): self
     {
         return $this->it($specification, $code, $examples);
     }
 
-    public function should(string $behavior, Closure $code = null, $examples = []): self
+    public function should(string $behavior, ?Closure $code = null, $examples = []): self
     {
         if ($code instanceof Closure) {
             $this->runSpec('should ' . $behavior, $code, $examples);
@@ -58,7 +58,7 @@ trait Specify
         return $this;
     }
 
-    public function shouldNot(string $behavior, Closure $code = null, $examples = []): self
+    public function shouldNot(string $behavior, ?Closure $code = null, $examples = []): self
     {
         if ($code instanceof Closure) {
             $this->runSpec('should not ' . $behavior, $code, $examples);

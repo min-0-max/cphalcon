@@ -42,6 +42,30 @@ class UnitTest extends Unit
         return $this->tester;
     }
 
+    /**
+     * PHPUnit < 9 honored @expectedException / @expectedExceptionMessage
+     * docblock annotations; PHPUnit 9 removed them. The bundled suite uses
+     * them, so translate them to expectException() calls here.
+     */
+    protected function runTest()
+    {
+        try {
+            $ref = new \ReflectionMethod($this, $this->getName(false));
+        } catch (\ReflectionException $e) {
+            return parent::runTest();
+        }
+        $doc = $ref->getDocComment();
+        if ($doc) {
+            if (preg_match('/@expectedException\s+([^\s\*]+)/', $doc, $m)) {
+                $this->expectException(trim($m[1], '\\\\'));
+            }
+            if (preg_match('/@expectedExceptionMessage\s+(.+)/', $doc, $m)) {
+                $this->expectExceptionMessage(trim($m[1]));
+            }
+        }
+        return parent::runTest();
+    }
+
     public function setExpectedException($exception, $message = '', $code = null)
     {
         /* Port runner (PHPUnit >= 9): only the expectException API exists. */

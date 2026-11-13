@@ -41,7 +41,7 @@ trait SpecifyHooks
      * @param Closure|null $callable
      * @param callable|array $params
      */
-    private function runSpec($specification, Closure $callable = null, $params = [])
+    private function runSpec($specification, ?Closure $callable = null, $params = [])
     {
         if (!$callable) {
             return;
@@ -165,15 +165,12 @@ trait SpecifyHooks
         $clonedProperties = [];
 
         foreach ($properties as $property) {
-            /** @var ReflectionProperty $property  **/
-            $docBlock = $property->getDocComment();
-            if (!$docBlock) {
-                continue;
-            }
-            if (preg_match('~\*(\s+)?@specify\s?~', $docBlock)) {
-                $property->setAccessible(true);
-                $clonedProperties[] = new ObjectProperty($this, $property);
-            }
+            /* 0.4 cloned/restore ALL object properties (opt-out via ignore
+             * lists, handled in specifyCloneProperties); 1.x requires an
+             * opt-in @specify annotation. The bundled suite has no such
+             * annotations - use the 0.4 semantics. */
+            $property->setAccessible(true);
+            $clonedProperties[] = new ObjectProperty($this, $property);
         }
 
         // isolate mockObjects property from PHPUnit\Framework\TestCase
@@ -209,18 +206,47 @@ trait SpecifyHooks
      */
     private function specifyCloneProperties($properties)
     {
+        /* The bundled 3.4 suite ran specify 0.4 with deep cloning disabled
+         * (SpecifyConfig::setDeepClone(false) in Helper\Unit::_before), so
+         * every object property was SHALLOW-cloned per example and restored
+         * after it: mutations land on the clone, the original stays
+         * pristine. codeception/specify 1.x removed this mode (deep clone
+         * only); restore the 0.4 semantics the suite was written against. */
+        static $ignoredClasses = [
+            'Codeception\\Actor',
+            'Symfony\\Component\\EventDispatcher\\EventDispatcher',
+            'Codeception\\Scenario',
+            'Codeception\\Lib\\Parser',
+        ];
+        static $ignoredProperties = [
+            'backupGlobals', 'backupGlobalsBlacklist',
+            'backupStaticAttributes', 'backupStaticAttributesBlacklist',
+            'runTestInSeparateProcess', 'preserveGlobalState',
+            'dependencies', 'dependencyInput', 'tester', 'guy', 'name',
+        ];
         foreach ($properties as $property) {
+            $propertyName = $property->getName();
+            if (in_array($propertyName, $ignoredProperties, true)) {
+                continue;
+            }
             $propertyValue = $property->getValue();
-            $property->setValue($this->copier->copy($propertyValue));
+            if (is_object($propertyValue) && in_array(get_class($propertyValue), $ignoredClasses, true)) {
+                continue;
+            }
+            if (is_object($propertyValue)) {
+                $property->setValue(clone $propertyValue);
+            } else {
+                $property->setValue($propertyValue);
+            }
         }
     }
 
-    private function beforeSpecify(Closure $callable = null)
+    private function beforeSpecify(?Closure $callable = null)
     {
         $this->beforeSpecify[] = $callable->bindTo($this);
     }
 
-    private function afterSpecify(Closure $callable = null)
+    private function afterSpecify(?Closure $callable = null)
     {
         $this->afterSpecify[] = $callable->bindTo($this);
     }

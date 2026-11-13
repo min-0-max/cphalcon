@@ -50,6 +50,48 @@ class Verify
         $this->message = $message;
     }
 
+    /* verify 0.x API names used by the bundled suite */
+    public function hasntKey($key)
+    {
+        return $this->hasNotKey($key);
+    }
+
+    public function notEquals($expected)
+    {
+        \PHPUnit\Framework\Assert::assertNotEquals($expected, $this->actual, $this->message);
+        return $this;
+    }
+
+    public function lessOrEquals($expected)
+    {
+        \PHPUnit\Framework\Assert::assertLessThanOrEqual($expected, $this->actual, $this->message);
+        return $this;
+    }
+
+    public function greaterOrEquals($expected)
+    {
+        \PHPUnit\Framework\Assert::assertGreaterThanOrEqual($expected, $this->actual, $this->message);
+        return $this;
+    }
+
+    public function null()
+    {
+        \PHPUnit\Framework\Assert::assertNull($this->actual, $this->message);
+        return $this;
+    }
+
+    public function notNull()
+    {
+        \PHPUnit\Framework\Assert::assertNotNull($this->actual, $this->message);
+        return $this;
+    }
+
+    public function notEmpty()
+    {
+        \PHPUnit\Framework\Assert::assertNotEmpty($this->actual, $this->message);
+        return $this;
+    }
+
     public function contains($needle)
     {
         if (is_string($this->actual)) {

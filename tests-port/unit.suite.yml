@@ -6,6 +6,12 @@
 #  - Redis/Memcache/libmemcached/Beanstalk/Mongo modules are not enabled;
 #    tests requiring those services are excluded via groups
 actor: UnitTester
+# Full error reporting during tests (same as the PHP 7 oracle); the port
+# gets no free passes from suppressed diagnostics. Deprecations (e.g. the
+# Serializable interface on PHP 8) are startup noise PHPUnit does not fail on.
+settings:
+    error_reporting: E_ALL
+
 modules:
     enabled:
         - Asserts
@@ -25,5 +31,5 @@ modules:
             user: '%TEST_DB_MYSQL_USER%'
             password: '%TEST_DB_MYSQL_PASSWD%'
             populate: true
-            cleanup: true
+            cleanup: false
             dump: 'tests/_data/schemas/mysql/phalcon_test.sql'
