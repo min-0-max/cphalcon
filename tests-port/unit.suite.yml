@@ -21,9 +21,9 @@ modules:
             frontend: 'Phalcon\Cache\Frontend\Data'
             cache_dir: 'tests/_cache/'
         Db:
-            dsn: 'mysql:host=127.0.0.1;dbname=phalcon_test'
-            user: 'root'
-            password: ''
+            dsn: '%TEST_DB_MYSQL_DSN%'
+            user: '%TEST_DB_MYSQL_USER%'
+            password: '%TEST_DB_MYSQL_PASSWD%'
             populate: true
             cleanup: false
             dump: 'tests/_data/schemas/mysql/phalcon_test.sql'

@@ -16,4 +16,5 @@ settings:
     memory_limit: 1G
 
 params:
+    - env
     - tests-port/env.port.yml
