@@ -131,7 +131,16 @@ Encryption audit (Linux/PHP 8.5.4/OpenSSL 3.5, empirical):
 - AES-256-ECB and AES-256-CFB both work (case-insensitive cipher names)
 
 Remaining open items:
-- PHP 8.6 GA re-verification (~2026-11-19)
+- PHP 8.6 GA re-verification (~2026-11-19, the code already builds
+  warning-clean against RC7)
+
+## DB Matrix (Linux/arm64)
+
+| Database | Result |
+|---|---|
+| MySQL 8.4.13 | Full suite: same profile as MariaDB |
+| MariaDB 10.11 | Full suite: 4 errors + 11 failures (all order-dependent, pass isolated) |
+| MySQL 5.7 | No arm64 image exists; run on amd64 when available |
 
 ## Serializable-interface decision: KEEP
 
