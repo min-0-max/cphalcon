@@ -66,6 +66,12 @@ trait SpecifyHooks
             $this->currentSpecifyTest = $test;
             $test->setName($this->getName() . ' |' . $this->specifyName);
             $test->setExample($example);
+            if (isset($params['throws'])) {
+                $test->setThrows($params['throws']);
+            }
+            if (isset($params['throwsMessage'])) {
+                $test->setThrowsMessage($params['throwsMessage']);
+            }
             if ($showExamplesIndex) {
                 $test->setName($this->getName() . ' |' . $this->specifyName . ' # example ' . $idx);
             }

@@ -17,6 +17,7 @@ class SpecifyTest implements Test, SelfDescribing
     protected $example;
 
     protected $throws;
+    protected $throwsMessage;
 
     public function __construct($test)
     {
@@ -66,23 +67,46 @@ class SpecifyTest implements Test, SelfDescribing
      */
     public function run(?TestResult $result = null): TestResult
     {
-        /* Port compat: PHPUnit >= 9 no longer exposes the parent result
-         * object, so $result may be null. Re-throw failures so the outer
-         * test records them instead of silently swallowing them. */
+        /* Port: re-implements the 0.x "throws"/"throwsMessage" behavior on
+         * top of the 1.x class (PHPUnit 9 compat; re-index examples). */
         try {
-            /* PHP 7 semantics: string keys in the examples array were
-             * ignored positionally; PHP 8 would treat them as named
-             * arguments, so re-index before calling. */
-            call_user_func_array($this->test, array_values($this->example));
-        } catch (AssertionFailedError $e) {
-            if ($result === null) {
-                throw $e;
+            call_user_func_array($this->test, array_values((array) $this->example));
+        } catch (\Exception $e) {
+            if ($this->throws !== null && $this->throws !== []) {
+                $expected = is_array($this->throws) ? $this->throws : [$this->throws];
+                foreach ($expected as $class) {
+                    if ($e instanceof $class) {
+                        if ($this->throwsMessage !== null && strpos($e->getMessage(), (string) $this->throwsMessage) === false) {
+                            $failure = new AssertionFailedError(
+                                "Specified exception message '" . $this->throwsMessage . "' not found in '" . $e->getMessage() . "'"
+                            );
+                            if ($result === null) { throw $failure; }
+                            $result->addFailure(clone($this), $failure, $result->time());
+                            if ($result === null) { $result = new TestResult(); }
+                            return $result;
+                        }
+                        if ($result === null) { $result = new TestResult(); }
+                        return $result; /* expected exception matched */
+                    }
+                }
             }
-            $result->addFailure(clone($this), $e, $result->time());
+            if ($e instanceof AssertionFailedError) {
+                if ($result === null) { throw $e; }
+                $result->addFailure(clone($this), $e, $result->time());
+            } else {
+                /* unexpected exception: surface it (recorded by outer runner) */
+                if ($result === null) { throw $e; }
+                $result->addError(clone($this), $e, $result->time());
+            }
+            if ($result === null) { $result = new TestResult(); }
+            return $result;
         }
-        if ($result === null) {
-            $result = new TestResult();
+        if ($this->throws !== null && $this->throws !== []) {
+            $failure = new AssertionFailedError("Expected exception was not thrown");
+            if ($result === null) { throw $failure; }
+            $result->addFailure(clone($this), $failure, $result->time());
         }
+        if ($result === null) { $result = new TestResult(); }
         return $result;
     }
 
@@ -100,5 +124,13 @@ class SpecifyTest implements Test, SelfDescribing
     public function setThrows($throws)
     {
         $this->throws = $throws;
+    }
+
+    /**
+     * @param string|null $throwsMessage
+     */
+    public function setThrowsMessage($throwsMessage)
+    {
+        $this->throwsMessage = $throwsMessage;
     }
 }
