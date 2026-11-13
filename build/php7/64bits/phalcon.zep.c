@@ -12957,6 +12957,12 @@ ZEPHIR_INIT_CLASS(Phalcon_Config) {
 
 	ZEPHIR_REGISTER_CLASS(Phalcon, Config, phalcon, config, phalcon_config_method_entry, 0);
 
+#if PHP_VERSION_ID >= 80200
+	/* PHP 8.2 deprecates dynamic properties; this class intentionally
+	 * stores user data as dynamic properties (PHP 7 semantics). */
+	phalcon_config_ce->ce_flags |= ZEND_ACC_ALLOW_DYNAMIC_PROPERTIES;
+#endif
+
 	zend_declare_property_null(phalcon_config_ce, SL("_pathDelimiter"), ZEND_ACC_PROTECTED|ZEND_ACC_STATIC TSRMLS_CC);
 
 	zephir_declare_class_constant_string(phalcon_config_ce, SL("DEFAULT_PATH_DELIMITER"), ".");
@@ -44679,6 +44685,12 @@ ZEPHIR_INIT_CLASS(Phalcon_Mvc_Collection) {
 
 	ZEPHIR_REGISTER_CLASS(Phalcon\\Mvc, Collection, phalcon, mvc_collection, phalcon_mvc_collection_method_entry, ZEND_ACC_EXPLICIT_ABSTRACT_CLASS);
 
+#if PHP_VERSION_ID >= 80200
+	/* PHP 8.2 deprecates dynamic properties; this class intentionally
+	 * stores user data as dynamic properties (PHP 7 semantics). */
+	phalcon_mvc_collection_ce->ce_flags |= ZEND_ACC_ALLOW_DYNAMIC_PROPERTIES;
+#endif
+
 	zend_declare_property_null(phalcon_mvc_collection_ce, SL("_id"), ZEND_ACC_PUBLIC TSRMLS_CC);
 
 	zend_declare_property_null(phalcon_mvc_collection_ce, SL("_dependencyInjector"), ZEND_ACC_PROTECTED TSRMLS_CC);
@@ -49064,6 +49076,12 @@ zend_object *zephir_init_properties_Phalcon_Mvc_Micro(zend_class_entry *class_ty
 ZEPHIR_INIT_CLASS(Phalcon_Mvc_Model) {
 
 	ZEPHIR_REGISTER_CLASS(Phalcon\\Mvc, Model, phalcon, mvc_model, phalcon_mvc_model_method_entry, ZEND_ACC_EXPLICIT_ABSTRACT_CLASS);
+
+#if PHP_VERSION_ID >= 80200
+	/* PHP 8.2 deprecates dynamic properties; this class intentionally
+	 * stores user data as dynamic properties (PHP 7 semantics). */
+	phalcon_mvc_model_ce->ce_flags |= ZEND_ACC_ALLOW_DYNAMIC_PROPERTIES;
+#endif
 
 	zend_declare_property_null(phalcon_mvc_model_ce, SL("_dependencyInjector"), ZEND_ACC_PROTECTED TSRMLS_CC);
 
@@ -79461,6 +79479,12 @@ ZEPHIR_INIT_CLASS(Phalcon_Mvc_Collection_Document) {
 
 	ZEPHIR_REGISTER_CLASS(Phalcon\\Mvc\\Collection, Document, phalcon, mvc_collection_document, phalcon_mvc_collection_document_method_entry, 0);
 
+#if PHP_VERSION_ID >= 80200
+	/* PHP 8.2 deprecates dynamic properties; this class intentionally
+	 * stores user data as dynamic properties (PHP 7 semantics). */
+	phalcon_mvc_collection_document_ce->ce_flags |= ZEND_ACC_ALLOW_DYNAMIC_PROPERTIES;
+#endif
+
 	zend_class_implements(phalcon_mvc_collection_document_ce TSRMLS_CC, 1, phalcon_mvc_entityinterface_ce);
 	zend_class_implements(phalcon_mvc_collection_document_ce TSRMLS_CC, 1, zend_ce_arrayaccess);
 	return SUCCESS;
@@ -96327,6 +96351,12 @@ ZEPHIR_DOC_METHOD(Phalcon_Mvc_Model_ResultsetInterface, toArray);
 ZEPHIR_INIT_CLASS(Phalcon_Mvc_Model_Row) {
 
 	ZEPHIR_REGISTER_CLASS(Phalcon\\Mvc\\Model, Row, phalcon, mvc_model_row, phalcon_mvc_model_row_method_entry, 0);
+
+#if PHP_VERSION_ID >= 80200
+	/* PHP 8.2 deprecates dynamic properties; this class intentionally
+	 * stores user data as dynamic properties (PHP 7 semantics). */
+	phalcon_mvc_model_row_ce->ce_flags |= ZEND_ACC_ALLOW_DYNAMIC_PROPERTIES;
+#endif
 
 	zend_class_implements(phalcon_mvc_model_row_ce TSRMLS_CC, 1, phalcon_mvc_entityinterface_ce);
 	zend_class_implements(phalcon_mvc_model_row_ce TSRMLS_CC, 1, phalcon_mvc_model_resultinterface_ce);
@@ -133878,6 +133908,12 @@ static PHP_METHOD(Phalcon_Di_FactoryDefault, __construct) {
 ZEPHIR_INIT_CLASS(Phalcon_Di_Injectable) {
 
 	ZEPHIR_REGISTER_CLASS(Phalcon\\Di, Injectable, phalcon, di_injectable, phalcon_di_injectable_method_entry, ZEND_ACC_EXPLICIT_ABSTRACT_CLASS);
+
+#if PHP_VERSION_ID >= 80200
+	/* PHP 8.2 deprecates dynamic properties; this class intentionally
+	 * stores user data as dynamic properties (PHP 7 semantics). */
+	phalcon_di_injectable_ce->ce_flags |= ZEND_ACC_ALLOW_DYNAMIC_PROPERTIES;
+#endif
 
 	zend_declare_property_null(phalcon_di_injectable_ce, SL("_dependencyInjector"), ZEND_ACC_PROTECTED TSRMLS_CC);
 

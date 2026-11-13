@@ -28,6 +28,118 @@ import shutil
 import re
 import sys
 
+# PHP 8.1 interface-conformance signatures for methods Phalcon 3.4
+# implements from SPL/core interfaces. Declaring these (tentative where
+# php-src marks them @tentative) silences the ReturnTypeWillChange
+# deprecations while keeping runtime behavior identical on violation
+# (deprecation instead of TypeError). Param names use the canonical PHP
+# names; the PHP 7-era code never exposed named arguments, so this is
+# purely additive.
+_AA = ["phalcon_config", "phalcon_di", "phalcon_mvc_model_resultset",
+       "phalcon_mvc_model_row", "phalcon_mvc_micro",
+       "phalcon_mvc_collection_document", "phalcon_session_bag",
+       "phalcon_registry", "phalcon_translate_adapter",
+       "phalcon_validation_message_group"]
+_COUNT = ["phalcon_config", "phalcon_mvc_model_resultset", "phalcon_forms_form",
+          "phalcon_annotations_collection", "phalcon_assets_collection",
+          "phalcon_registry", "phalcon_session_bag",
+          "phalcon_validation_message_group"]
+_ITER = ["phalcon_annotations_collection", "phalcon_assets_collection",
+         "phalcon_forms_form", "phalcon_mvc_model_resultset",
+         "phalcon_registry", "phalcon_validation_message_group"]
+_TOSTRING = ["phalcon_acl_resource", "phalcon_acl_resourceinterface",
+             "phalcon_acl_role", "phalcon_acl_roleinterface",
+             "phalcon_db_rawvalue", "phalcon_forms_element",
+             "phalcon_http_cookie", "phalcon_mvc_model_message",
+             "phalcon_mvc_model_messageinterface",
+             "phalcon_validation_message",
+             "phalcon_validation_messageinterface"]
+
+TYPED_METHODS = {}
+
+
+def _typed(cls, meth, ret, tentative, params):
+    TYPED_METHODS[(cls, meth)] = {
+        "ret": ret,             # ("TYPE", code) or ("OBJ", "Traversable")
+        "tentative": tentative,
+        "params": params,       # [(name, type_code, allow_null)]
+    }
+
+
+for _c in _AA:
+    _typed(_c, "offsetexists", ("TYPE", "_IS_BOOL"), True,
+           [("offset", "IS_MIXED", 0)])
+    _typed(_c, "offsetget", ("TYPE", "IS_MIXED"), True,
+           [("offset", "IS_MIXED", 0)])
+    _typed(_c, "offsetset", ("TYPE", "IS_VOID"), True,
+           [("offset", "IS_MIXED", 0), ("value", "IS_MIXED", 0)])
+    _typed(_c, "offsetunset", ("TYPE", "IS_VOID"), True,
+           [("offset", "IS_MIXED", 0)])
+for _c in _COUNT:
+    _typed(_c, "count", ("TYPE", "IS_LONG"), True, [])
+for _c in _ITER:
+    _typed(_c, "current", ("TYPE", "IS_MIXED"), True, [])
+    _typed(_c, "key", ("TYPE", "IS_MIXED"), True, [])
+    _typed(_c, "next", ("TYPE", "IS_VOID"), True, [])
+    _typed(_c, "rewind", ("TYPE", "IS_VOID"), True, [])
+    _typed(_c, "valid", ("TYPE", "_IS_BOOL"), True, [])
+for _c in ["phalcon_mvc_model_resultset"]:
+    _typed(_c, "seek", ("TYPE", "IS_VOID"), True,
+           [("position", "IS_LONG", 0)])
+for _c in ["phalcon_mvc_model", "phalcon_mvc_model_resultset",
+           "phalcon_mvc_model_row"]:
+    _typed(_c, "jsonserialize", ("TYPE", "IS_MIXED"), True, [])
+for _c in ["phalcon_session_bag"]:
+    _typed(_c, "getiterator", ("OBJ", "Traversable"), True, [])
+# Stringable requires a real string return type.
+for _c in _TOSTRING:
+    _typed(_c, "__tostring", ("TYPE", "IS_STRING"), False, [])
+# Iterator::current() on the concrete resultset subclasses
+for _c in ["phalcon_mvc_model_resultset_simple",
+           "phalcon_mvc_model_resultset_complex"]:
+    _typed(_c, "current", ("TYPE", "IS_MIXED"), True, [])
+
+
+def typed_block(name, spec, fallback=None):
+    """Guarded PHP 8.1 typed arginfo block. `fallback` is the original
+    definition text to keep under #else; when None a plain canonical
+    block is generated."""
+    params = spec["params"]
+    required = len(params)  # all conformance params are required
+    # NOTE: these macros take (name, return_reference, required_num_args,
+    # type, allow_null) -- there is no num_args; the total comes from the
+    # ZEND_ARG_* lines.
+    if spec["ret"][0] == "OBJ":
+        begin = ("ZEND_BEGIN_ARG_WITH_TENTATIVE_RETURN_OBJ_INFO_EX"
+                 if spec["tentative"] else
+                 "ZEND_BEGIN_ARG_WITH_RETURN_OBJ_INFO_EX")
+        head = "%s(%s, 0, %d, %s, 0)" % (
+            begin, name, required, spec["ret"][1])
+    else:
+        begin = ("ZEND_BEGIN_ARG_WITH_TENTATIVE_RETURN_TYPE_INFO_EX"
+                 if spec["tentative"] else
+                 "ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX")
+        head = "%s(%s, 0, %d, %s, 0)" % (
+            begin, name, required, spec["ret"][1])
+    lines = ["#if PHP_VERSION_ID >= 80100", head]
+    for pname, code, nullable in params:
+        lines.append("\tZEND_ARG_TYPE_INFO(0, %s, %s, %d)" % (
+            pname, code, nullable))
+    lines.append("ZEND_END_ARG_INFO()")
+    lines.append("#else")
+    if fallback is not None:
+        lines.append(fallback.rstrip("\n"))
+    else:
+        plain = ["ZEND_BEGIN_ARG_INFO_EX(%s, 0, 0, %d)" % (
+            name, required)]
+        for pname, _c, _n in params:
+            plain.append("\tZEND_ARG_INFO(0, %s)" % pname)
+        plain.append("ZEND_END_ARG_INFO()")
+        lines.extend(plain)
+    lines.append("#endif")
+    return "\n".join(lines)
+
+
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ZEP_DIR = os.path.join(REPO, "phalcon")
 ZEPH_H = os.path.join(REPO, "build", "php7", "64bits", "phalcon.zep.h")
@@ -269,14 +381,21 @@ def main():
         name = arginfo_name(cls, meth)
         if name not in blocks:
             order.append(name)
-            required = sum(1 for _, opt in params if not opt)
-            lines = [
-                "ZEND_BEGIN_ARG_INFO_EX(%s, 0, %d, %d)" % (name, required, len(params))
-            ]
-            for pname, _ in params:
-                lines.append("\tZEND_ARG_INFO(0, %s)" % pname)
-            lines.append("ZEND_END_ARG_INFO()")
-            blocks[name] = "\n".join(lines)
+            spec = TYPED_METHODS.get((cls.lower(), meth.lower()))
+            if spec is not None:
+                blocks[name] = typed_block(name, spec)
+            else:
+                required = sum(1 for _, opt in params if not opt)
+                # (name, _unused, return_reference, required_num_args);
+                # total is implied by the ZEND_ARG_INFO lines.
+                lines = [
+                    "ZEND_BEGIN_ARG_INFO_EX(%s, 0, 0, %d)" % (
+                        name, required)
+                ]
+                for pname, _ in params:
+                    lines.append("\tZEND_ARG_INFO(0, %s)" % pname)
+                lines.append("ZEND_END_ARG_INFO()")
+                blocks[name] = "\n".join(lines)
         return "%s%s%s" % (prefix, name, tail)
 
     # Zephir also emits a few static abstract interface methods as
@@ -327,6 +446,30 @@ def main():
                 state["class"] = cm.group(1)
         out_lines.append(FENTRY_RE.sub(frepl, line))
     text = "".join(out_lines)
+
+    # Wrap existing Zephir-emitted arginfo definitions of typed-conformance
+    # methods (defined in phalcon.zep.h itself) with the PHP 8.1 typed form.
+    REF_RE = re.compile(
+        r"(?:PHP_ME|PHP_ABSTRACT_ME)\(\s*(\w+)\s*,\s*(\w+)\s*,\s*(arginfo_\w+)")
+    BLOCK_RE_TMPL = (
+        r"(ZEND_BEGIN_ARG_INFO[^\n]*\(%s,)(.*?)(ZEND_END_ARG_INFO\(\))"
+    )
+    typed_refs = {}
+    for m in REF_RE.finditer(text):
+        key = (m.group(1).lower(), m.group(2).lower())
+        if key in TYPED_METHODS:
+            typed_refs[m.group(3)] = key
+    for aname, key in typed_refs.items():
+        spec = TYPED_METHODS[key]
+        pat = re.compile(BLOCK_RE_TMPL % re.escape(aname), re.S)
+        mm = pat.search(text)
+        if not mm:
+            continue
+        original = mm.group(0)
+        if original.startswith("#if"):
+            continue  # already wrapped (idempotency via pristine anyway)
+        wrapped = typed_block(aname, spec, fallback=original)
+        text = text[:mm.start()] + wrapped + text[mm.end():]
 
     new_text, n = ME_RE.subn(repl, text)
     print("rewrote %d NULL arginfo references; %d unresolved" % (
