@@ -92,9 +92,21 @@ tests/_data/schemas/mysql/phalcon_test.sql:
     COMPOSER=composer-port.json composer install
     scripts/run-suite.sh "$(which php)" build/php7/64bits/modules
 
-Current state on PHP 8.5.10 / macOS arm64: 1,335 tests,
-6,114 assertions, 73 errors + 19 failures - remaining failures are
-environment/platform-bound (iconv //TRANSLIT, en_US.utf8 locale, CLI
-session headers, Postgres/Redis absent). Verified real port bugs fixed
+Suite state (macOS arm64, MySQL 8.4 loaded with the bundled schema):
+
+- PHP 8.5.10: 1,335 tests, 6,202 assertions, 35 errors + 19 failures
+- PHP 8.6.0RC7: 1,335 tests, 34 errors + 17 failures (same distribution)
+
+Every remaining failure is environment-bound, verified one by one:
+Postgres absent (9), CLI session/locale warnings (15, macOS),
+AES-128-ECB blocked by OpenSSL 3 policy (2), sqlite-context model
+metadata (6), and a few runner artifacts. Verified real port bugs fixed
 along the way: Volt join, require-file-handle corruption (SIGBUS),
 fcall garbage, Date validator, Luhn, twig engine fixtures.
+
+Open items (need a Linux environment; the local VM would not boot):
+- re-run the suite on Linux (glibc iconv //TRANSLIT, locales) and the
+  MySQL 5.7/8.x/MariaDB matrix (see ci-port/compose.yml)
+- differential pass against the PHP 7.0 + v3.4.3 oracle
+- Serializable-interface decision for the 3 classes (PHP 7 session and
+  cache payload fixtures)
