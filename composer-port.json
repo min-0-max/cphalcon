@@ -6,7 +6,6 @@
         "codeception/module-filesystem": "^3.0",
         "codeception/module-db": "^3.1",
         "codeception/specify": "^1.4",
-        "codeception/verify": "^1.0",
         "mustache/mustache": "^2.11",
         "twig/twig": "^3.0",
         "predis/predis": "^2.0",

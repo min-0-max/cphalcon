@@ -165337,8 +165337,31 @@ static PHP_METHOD(Phalcon_Validation_Validator_CreditCard, verifyByLuhnAlgorithm
 	ZEPHIR_INIT_NVAR(&position);
 	ZEPHIR_CALL_FUNCTION(&_8, "str_split", NULL, 70, &hash);
 	zephir_check_call_status();
+#if PHP_VERSION_ID >= 80000
+	/* PHP 7's array_sum() silently treated non-numeric strings as 0;
+	 * PHP 8 raises an arithmetic error. Keep the PHP 7 semantics for
+	 * invalid-card numbers (e.g. with spaces) by summing digits only. */
+	{
+		zval *entry;
+		zend_long sum = 0;
+		zend_array *arr = Z_ARRVAL(_8);
+		ZEND_HASH_FOREACH_VAL(arr, entry) {
+			if (Z_TYPE_P(entry) == IS_LONG) {
+				sum += Z_LVAL_P(entry);
+			} else if (Z_TYPE_P(entry) == IS_DOUBLE) {
+				sum += (zend_long) Z_DVAL_P(entry);
+			} else if (Z_TYPE_P(entry) == IS_STRING && is_numeric_string(Z_STRVAL_P(entry), Z_STRLEN_P(entry), NULL, NULL, 0) != 0) {
+				zend_long lv;
+				is_numeric_string(Z_STRVAL_P(entry), Z_STRLEN_P(entry), &lv, NULL, 0);
+				sum += lv;
+			}
+		} ZEND_HASH_FOREACH_END();
+		ZVAL_LONG(&result, sum);
+	}
+#else
 	ZEPHIR_CALL_FUNCTION(&result, "array_sum", NULL, 443, &_8);
 	zephir_check_call_status();
+#endif
 	RETURN_MM_BOOL((zephir_safe_mod_zval_long(&result, 10 TSRMLS_CC) == 0));
 
 }

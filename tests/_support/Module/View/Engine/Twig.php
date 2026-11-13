@@ -4,7 +4,7 @@ namespace Phalcon\Test\Module\View\Engine;
 
 use Twig\Environment;
 use Phalcon\DiInterface;
-use Twig\Loader\Filesystem;
+use Twig\Loader\FilesystemLoader;
 use Phalcon\Mvc\View\Engine;
 use Phalcon\Mvc\ViewBaseInterface;
 use Phalcon\Mvc\View\EngineInterface;
@@ -40,7 +40,7 @@ class Twig extends Engine implements EngineInterface
      */
     public function __construct(ViewBaseInterface $view, DiInterface $dependencyInjector = null)
     {
-        $this->twig = new Twig\Environment(new Twig\Loader\Filesystem($view->getViewsDir()));
+        $this->twig = new \Twig\Environment(new \Twig\Loader\FilesystemLoader($view->getViewsDir()));
 
         parent::__construct($view, $dependencyInjector);
     }

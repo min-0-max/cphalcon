@@ -110,6 +110,13 @@ class PhalconPort extends Module
         apcu_store($key, $value);
     }
 
+    public function grabValueFromApc($key)
+    {
+        $value = apcu_fetch($key);
+        $this->assertNotFalse($value, "The APCu key '$key' does not exist");
+        return $value;
+    }
+
     public function seeInApc($key, $value = null)
     {
         $fetch = apcu_fetch($key);

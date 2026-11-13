@@ -15,6 +15,7 @@ $root = dirname(__DIR__);
 spl_autoload_register(function ($class) use ($root) {
     static $map = array(
         'Codeception\\Lib\\Connector\\Phalcon\\' => '/tests-port/fixed-classes/Codeception/Lib/Connector/Phalcon/',
+        'Codeception\\Verify\\'                 => '/tests-port/fixed-classes/verify-src-Codeception/Verify/',
         'Codeception\\Specify\\' => '/tests-port/specify-fixed/Codeception/Specify/',
         'Codeception\\Specify'    => '/tests-port/specify-fixed/Codeception/Specify.php',
     );
@@ -52,6 +53,10 @@ spl_autoload_register(function ($class) use ($root) {
         }
     }
 });
+
+/* verify() / expect() helpers (the verify package is vendored locally
+ * so the string-aware contains/notContains shim always wins) */
+require_once $root . '/tests-port/fixed-classes/verify-src-Codeception/function.php';
 
 /* Helper module used by the suite config */
 require_once $root . '/tests/_support/Helper/Unit.php';
