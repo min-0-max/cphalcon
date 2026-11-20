@@ -3581,7 +3581,16 @@ static int zephir_get_global(zval **arr, const char *global, unsigned int global
 		}
 	}
 
-	*arr = NULL;
+	/* PHP 8.6: zend_is_auto_global("_SESSION") may not create the
+	 * superglobal until session_start(); point at a static empty array
+	 * instead of NULL so callers don't crash. */
+	{
+		static zval empty_array;
+		if (Z_TYPE(empty_array) == IS_UNDEF) {
+			array_init(&empty_array);
+		}
+		*arr = &empty_array;
+	}
 	zend_string_release(str);
 	return FAILURE;
 }

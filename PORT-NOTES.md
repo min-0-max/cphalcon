@@ -131,7 +131,12 @@ Encryption audit (Linux/PHP 8.5.4/OpenSSL 3.5, empirical):
 - AES-256-ECB and AES-256-CFB both work (case-insensitive cipher names)
 
 Remaining open items:
-- PHP 8.6 GA re-verification (~2026-11-19, the code already builds
+- PHP 8.6.0 GA (2026-11-19): verified — 18/18 smoke tests
+  pass on macOS/arm64. One fix added: zephir_get_global() now returns
+  a static empty array instead of NULL when the superglobal is not yet
+  initialized (PHP 8.6 does not auto-create _SESSION until
+  session_start() calls zend_is_auto_global). Also fixed and verified on
+  PHP 8.5. (Code previously builds
   warning-clean against RC7)
 
 ## DB Matrix (Linux/arm64)
